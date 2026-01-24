@@ -191,10 +191,17 @@ class JyProject:
         向指定轨道的最后两个片段之间添加转场。
         注意：只能添加到已存在的片段之间。
         """
-        # 找到对应轨道
+        # 找到对应轨道 (兼容 List/Dict)
         track = None
-        for t in self.script.tracks:
-            if t.name == track_name and t.type == draft.TrackType.video:
+        tracks = self.script.tracks
+        if isinstance(tracks, dict):
+            iterator = tracks.values()
+        else:
+            iterator = tracks if isinstance(tracks, list) else []
+
+        for t in iterator:
+            if hasattr(t, 'name') and getattr(t, 'name') == track_name and \
+               hasattr(t, 'type') and getattr(t, 'type') == draft.TrackType.video:
                 track = t
                 break
         
@@ -220,10 +227,32 @@ class JyProject:
             print(f"❌ Failed add transition: {e}")
 
     def _ensure_track(self, type, name):
-        for t in self.script.tracks:
-            if t.name == name and t.type == type:
+        # 兼容性修复: self.script.tracks 可能是 List[Track] 或 Dict[str, Track]
+        tracks = self.script.tracks
+        
+        # 获取迭代器
+        if isinstance(tracks, dict):
+            iterator = tracks.values()
+        elif isinstance(tracks, list):
+            iterator = tracks
+        else:
+            # Fallback
+            iterator = []
+
+        # 遍历查找是否存在同名同类型轨道
+        for t in iterator:
+            # 防御性检查
+            if hasattr(t, 'name') and getattr(t, 'name') == name and \
+               hasattr(t, 'type') and getattr(t, 'type') == type:
                 return
-        self.script.add_track(type, name)
+        
+        # 不存在则创建 (捕获 NameError 以防并发或状态不一致)
+        try:
+            self.script.add_track(type, name)
+        except NameError:
+            # 如果底层库抛出 "NameError: 名为 'xxx' 的轨道已存在"，说明轨道其实存在
+            # 我们可以安全地忽略这个错误，视为 ensure 成功
+            pass
 
 # --- 5. CLI Controller ---
 
