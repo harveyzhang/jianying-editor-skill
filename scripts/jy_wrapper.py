@@ -117,6 +117,14 @@ def _resolve_enum(enum_cls, name: str):
     print(f"⚠️ Warning: Could not find enum memeber for '{name}'.")
     return None
 
+def format_srt_time(us: int) -> str:
+    """将微秒转换为 SRT 时间戳格式 (HH:MM:SS,mmm)"""
+    ms = (us // 1000) % 1000
+    s = (us // 1000000) % 60
+    m = (us // 60000000) % 60
+    h = (us // 3600000000)
+    return f"{h:02d}:{m:02d}:{s:02d},{ms:03d}"
+
 # --- 4. High-Level Facade ---
 
 class JyProject:
@@ -137,7 +145,14 @@ class JyProject:
         
         self.df = draft.DraftFolder(self.root)
         self.name = name
-        self.script = self.df.create_draft(name, width, height, allow_replace=overwrite)
+        
+        # 支持打开现有项目或创建新项目
+        if self.df.has_draft(name):
+            print(f"📖 Loading existing project: {name}")
+            self.script = self.df.load_template(name)
+        else:
+            print(f"🆕 Creating new project: {name}")
+            self.script = self.df.create_draft(name, width, height, allow_replace=overwrite)
 
     def save(self):
         self.script.save()
@@ -293,6 +308,89 @@ class JyProject:
         except Exception as e:
             print(f"❌ Failed add transition: {e}")
 
+    def export_subtitles(self, output_path: str, track_name: str = None):
+        """
+        导出项目中的字幕为 SRT 格式。
+        支持新创建的 TextSegment 和从草稿导入的文本片段。
+        """
+        import json
+        all_segments = []
+        
+        # 1. 收集所有文本轨道
+        tracks = self.script.tracks
+        iterator = tracks.values() if isinstance(tracks, dict) else (tracks if isinstance(tracks, list) else [])
+        
+        # 也要考虑导入的轨道
+        imported_tracks = getattr(self.script, 'imported_tracks', [])
+        
+        all_text_tracks = []
+        for t in list(iterator) + list(imported_tracks):
+            t_type = getattr(t, 'type', None) or getattr(t, 'track_type', None)
+            if t_type == draft.TrackType.text:
+                if track_name and getattr(t, 'name', '') != track_name:
+                    continue
+                all_text_tracks.append(t)
+        
+        if not all_text_tracks:
+            print("⚠️ No text tracks found to export.")
+            return False
+
+        # 2. 遍历片段并提取文本
+        # 需要查找素材库以获取导入片段的内容
+        material_texts = {}
+        # 检查新素材
+        for mat in self.script.materials.texts:
+            material_texts[mat['id']] = mat
+        # 检查导入素材
+        if hasattr(self.script, 'imported_materials'):
+            for mat in self.script.imported_materials.get('texts', []):
+                material_texts[mat['id']] = mat
+
+        for track in all_text_tracks:
+            for seg in track.segments:
+                text_val = ""
+                # 情况 A: 新创建的 TextSegment
+                if hasattr(seg, 'text'):
+                    text_val = seg.text
+                # 情况 B: 导入的片段 (ImportedSegment)
+                elif hasattr(seg, 'material_id'):
+                    mat_id = seg.material_id
+                    if mat_id in material_texts:
+                        try:
+                            content = json.loads(material_texts[mat_id]['content'])
+                            text_val = content.get('text', '')
+                        except:
+                            text_val = "[Complex Text/Bubble]"
+                
+                if text_val:
+                    # 获取时间范围
+                    tr = seg.target_timerange
+                    all_segments.append({
+                        'start': tr.start,
+                        'end': tr.start + tr.duration,
+                        'text': text_val
+                    })
+
+        if not all_segments:
+            print("⚠️ No valid subtitles found.")
+            return False
+
+        # 3. 按开始时间排序
+        all_segments.sort(key=lambda x: x['start'])
+
+        # 4. 写入 SRT
+        try:
+            with open(output_path, 'w', encoding='utf-8-sig') as f:
+                for idx, s in enumerate(all_segments, 1):
+                    f.write(f"{idx}\n")
+                    f.write(f"{format_srt_time(s['start'])} --> {format_srt_time(s['end'])}\n")
+                    f.write(f"{s['text']}\n\n")
+            print(f"📝 Subtitles exported to: {output_path}")
+            return True
+        except Exception as e:
+            print(f"❌ Failed to export SRT: {e}")
+            return False
+
     def _ensure_track(self, type, name):
         # 兼容性修复: self.script.tracks 可能是 List[Track] 或 Dict[str, Track]
         tracks = self.script.tracks
@@ -337,6 +435,11 @@ def cli():
     # Command: list-drafts (新)
     subparsers.add_parser("list-drafts", help="List user video drafts from JianYing")
 
+    # Command: export-srt (新)
+    export_parser = subparsers.add_parser("export-srt", help="Export subtitles from a draft to SRT file")
+    export_parser.add_argument("--name", required=True, help="Draft Project Name")
+    export_parser.add_argument("--output", help="Output SRT path (default: project_name.srt)")
+
     # Command: create (Simple)
     create_parser = subparsers.add_parser("create", help="Quickly create a simple video draft")
     create_parser.add_argument("--name", required=True, help="Project Name")
@@ -372,6 +475,11 @@ def cli():
             for d in drafts:
                 t_str = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(d['mtime']))
                 print(f" - {d['name']} (Last Modified: {t_str})")
+
+    elif args.command == "export-srt":
+        p = JyProject(args.name)
+        output = args.output or f"{args.name}.srt"
+        p.export_subtitles(output)
 
     elif args.command == "create":
         p = JyProject(args.name)

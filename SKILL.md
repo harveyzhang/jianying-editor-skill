@@ -62,6 +62,9 @@ python .agent/skills/jianying-editor/scripts/jy_wrapper.py list-assets --type an
 
 # 快速创建草稿
 python .agent/skills/jianying-editor/scripts/jy_wrapper.py create --name "Test" --media "C:/video.mp4" --text "Demo"
+
+# 导出字幕为 SRT (保留时间轴)
+python .agent/skills/jianying-editor/scripts/jy_wrapper.py export-srt --name "MyProject" --output "subs.srt"
 ```
 
 ## 约束提示
