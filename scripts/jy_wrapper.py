@@ -310,7 +310,7 @@ class JyProject:
         for t in iterator:
             # 防御性检查
             if hasattr(t, 'name') and getattr(t, 'name') == name and \
-               hasattr(t, 'type') and getattr(t, 'type') == type:
+               hasattr(t, 'track_type') and getattr(t, 'track_type') == type:
                 return
         
         # 不存在则创建 (捕获 NameError 以防并发或状态不一致)
