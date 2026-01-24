@@ -2,6 +2,17 @@
 
 这是一个为 Google Antigravity 设计的专业级 Skill，旨在通过 AI 代理全自动生成、编辑和导出剪映（JianYing/CapCut 中国版）视频草稿。
 
+## 🚀 Quick Start / 快速入门
+
+# 1. Install skills
+mkdir -p .agent/skills/
+git clone https://github.com/luoluoluo22/jianying-editor-skill.git .agent/skills/jianying-editor
+
+# 2. Use a skill in your AI assistant
+@jianying-editor 帮我用 assets 里的视频创建一个自动剪辑项目
+
+---
+
 ## 🌟 核心特性
 
 - **多轨管理**：支持视频、音频、文本、特效、滤镜等无限轨道叠加。
@@ -10,36 +21,20 @@
 - **自带知识库**：封装了 `pyJianYingDraft` 全量源码参考，代理可直接通过查阅内部代码提供精准的 API 调用。
 - **真实素材包**：Skill 内部携带演示专用的视频和音频资源。
 
-## 📦 如何安装与配置
+## 📦 详细安装与配置
 
-### 1. 克隆 Skill
-您可以将此仓库直接放入 Antigravity 项目的特定目录中：
-
-```bash
-# 进入你的项目根目录
-mkdir -p .agent/skills/
-cd .agent/skills/
-git clone https://github.com/luoluoluo22/jianying-editor-skill.git jianying-editor
-```
-
-### 2. 依赖准备 (在本地 Python 环境中执行)
+### 1. 依赖准备 (在本地 Python 环境中执行)
 此 Skill 依赖于 `pyJianYingDraft` 及其核心组件：
 
 ```bash
 pip install uiautomation
 ```
 
-### 3. 配置剪映草稿路径
+### 2. 配置剪映草稿路径
 Skill 默认会在 **`SKILL.md`** 和脚本中使用标准路径：
 `C:\Users\Administrator\AppData\Local\JianyingPro\User Data\Projects\com.lveditor.draft`
 
 如果您的剪映安装在其他位置，请在 Antigravity 提示配置时告知其正确的“草稿位置”。
-
-## 🚀 快速上手示例
-
-您可以直接对 Antigravity 下达以下指令：
-
-> "使用 jianying-editor，创建一个 5 秒的视频，第一秒加入 assets 里的演示视频，并在结尾添加一个文字渐出动画。"
 
 ## 📂 目录结构
 
