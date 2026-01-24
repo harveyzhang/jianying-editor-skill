@@ -11,6 +11,7 @@ import shutil
 import warnings
 import argparse
 import difflib
+from typing import Union
 
 # --- 1. 幽灵依赖解决: 自动注入 references 路径 ---
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -111,7 +112,7 @@ class JyProject:
         self.script.save()
         print(f"✅ Saved project: {self.name} to {self.root}")
 
-    def add_media_safe(self, media_path: str, start_time: str, duration: str = None, 
+    def add_media_safe(self, media_path: str, start_time: Union[str, int], duration: Union[str, int] = None, 
                        track_name: str = None):
         """
         自动容错的媒体添加方法 (Auto-Clamp)
@@ -129,7 +130,7 @@ class JyProject:
         # 默认为视频/图片
         return self._add_video_safe(media_path, start_time, duration, track_name or "VideoTrack")
 
-    def add_audio_safe(self, media_path: str, start_time: str, duration: str = None, 
+    def add_audio_safe(self, media_path: str, start_time: Union[str, int], duration: Union[str, int] = None, 
                        track_name: str = "AudioTrack"):
         self._ensure_track(draft.TrackType.audio, track_name)
         
@@ -151,7 +152,7 @@ class JyProject:
         self.script.add_segment(seg, track_name)
         return seg
 
-    def _add_video_safe(self, media_path: str, start_time: str, duration: str = None, 
+    def _add_video_safe(self, media_path: str, start_time: Union[str, int], duration: Union[str, int] = None, 
                         track_name: str = "VideoTrack"):
         self._ensure_track(draft.TrackType.video, track_name)
         
@@ -173,11 +174,11 @@ class JyProject:
         self.script.add_segment(seg, track_name)
         return seg
 
-    def _calculate_duration(self, req_duration_str, phys_duration):
-        if req_duration_str:
-            req = tim(req_duration_str)
+    def _calculate_duration(self, req_duration, phys_duration):
+        if req_duration is not None:
+            req = tim(req_duration)
             if req > phys_duration:
-                print(f"⚠️ Auto-Clamp: {req_duration_str} > physical. Using full length.")
+                print(f"⚠️ Auto-Clamp: {req_duration} > physical. Using full length.")
                 return phys_duration
             return req
         return phys_duration
