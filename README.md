@@ -1,4 +1,5 @@
 # JianYing Editor Skill for Antigravity
+![封面图](assets/readme_assets/cover.png)
 
 这是一个为 Google Antigravity 设计的专业级 Skill，旨在通过 AI 代理全自动生成、编辑和导出剪映（JianYing/CapCut 中国版）视频草稿。
 
