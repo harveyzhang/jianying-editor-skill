@@ -49,10 +49,16 @@ project.save()
 - `references/api_summary.txt`: 核心类参考。
 
 ## CLI 诊断与快速使用
-Skill 的 Wrapper 脚本支持直接通过命令行运行进行诊断：
+Skill 的 Wrapper 脚本支持通过命令行进行诊断和草稿管理：
 ```bash
-# 检查剪映路径和依赖
+# 检查剪映路径和依赖 (会输出当前探测到的草稿目录)
 python .agent/skills/jianying-editor/scripts/jy_wrapper.py check
+
+# 列出用户当前的所有剪映草稿 (按时间排序)
+python .agent/skills/jianying-editor/scripts/jy_wrapper.py list-drafts
+
+# 列出可用的枚举资产 (动画、特效、转场)
+python .agent/skills/jianying-editor/scripts/jy_wrapper.py list-assets --type anim
 
 # 快速创建草稿
 python .agent/skills/jianying-editor/scripts/jy_wrapper.py create --name "Test" --media "C:/video.mp4" --text "Demo"

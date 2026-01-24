@@ -41,19 +41,50 @@ except ImportError:
 # --- 2. 路径自动探测 ---
 def get_default_drafts_root() -> str:
     """自动探测剪映草稿目录 (Windows)"""
-    local_app_data = os.environ.get('LOCALAPPDATA', '')
-    if not local_app_data:
-        return r"C:\Users\Administrator\AppData\Local\JianyingPro\User Data\Projects\com.lveditor.draft"
+    local_app_data = os.environ.get('LOCALAPPDATA')
+    user_profile = os.environ.get('USERPROFILE')
     
-    candidates = [
-        os.path.join(local_app_data, r"JianyingPro\User Data\Projects\com.lveditor.draft"),
-        os.path.join(local_app_data, r"CapCut\User Data\Projects\com.lveditor.draft")
-    ]
+    candidates = []
+    if local_app_data:
+        candidates.extend([
+            os.path.join(local_app_data, r"JianyingPro\User Data\Projects\com.lveditor.draft"),
+            os.path.join(local_app_data, r"CapCut\User Data\Projects\com.lveditor.draft")
+        ])
+    
+    if user_profile:
+        candidates.append(os.path.join(user_profile, r"AppData\Local\JianyingPro\User Data\Projects\com.lveditor.draft"))
+
+    # 默认兜底路径 (仅作参考)
+    fallback = r"C:\Users\Administrator\AppData\Local\JianyingPro\User Data\Projects\com.lveditor.draft"
     
     for path in candidates:
         if os.path.exists(path):
             return path
-    return candidates[0]
+            
+    # 如果都没找到，返回第一个候选路径但打印警告
+    if candidates:
+        return candidates[0]
+    return fallback
+
+def get_all_drafts(root_path: str = None):
+    """获取所有草稿并按修改时间排序"""
+    root = root_path or get_default_drafts_root()
+    drafts = []
+    if not os.path.exists(root):
+        return []
+        
+    for item in os.listdir(root):
+        path = os.path.join(root, item)
+        if os.path.isdir(path):
+            # 剪映草稿文件夹通常包含这两个文件之一
+            if os.path.exists(os.path.join(path, "draft_content.json")) or \
+               os.path.exists(os.path.join(path, "draft_meta_info.json")):
+                drafts.append({
+                    "name": item,
+                    "mtime": os.path.getmtime(path),
+                    "path": path
+                })
+    return sorted(drafts, key=lambda x: x['mtime'], reverse=True)
 
 # --- 3. 辅助函数: 模糊匹配 ---
 def _resolve_enum(enum_cls, name: str):
@@ -299,10 +330,13 @@ def cli():
     # Command: check
     subparsers.add_parser("check", help="Run diagnostics on environment")
     
-    # Command: list
-    list_parser = subparsers.add_parser("list", help="List available assets")
-    list_parser.add_argument("--type", choices=["anim", "effect", "trans"], default="anim")
+    # Command: list-assets (原 list)
+    list_assets_parser = subparsers.add_parser("list-assets", help="List available assets (effects, transitions, etc.)")
+    list_assets_parser.add_argument("--type", choices=["anim", "effect", "trans"], default="anim")
     
+    # Command: list-drafts (新)
+    subparsers.add_parser("list-drafts", help="List user video drafts from JianYing")
+
     # Command: create (Simple)
     create_parser = subparsers.add_parser("create", help="Quickly create a simple video draft")
     create_parser.add_argument("--name", required=True, help="Project Name")
@@ -323,10 +357,22 @@ def cli():
         else:
             print(f"❌ Drafts folder not found at: {root}")
             
-    elif args.command == "list":
+    elif args.command == "list-assets":
         # Simple listing, refer to md for details
         print("Please check '.agent/skills/jianying-editor/references/AVAILABLE_ASSETS.md' for full list.")
         
+    elif args.command == "list-drafts":
+        root = get_default_drafts_root()
+        drafts = get_all_drafts(root)
+        if not drafts:
+            print(f"📭 No drafts found in: {root}")
+        else:
+            print(f"📂 Found {len(drafts)} drafts in: {root}")
+            import time
+            for d in drafts:
+                t_str = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(d['mtime']))
+                print(f" - {d['name']} (Last Modified: {t_str})")
+
     elif args.command == "create":
         p = JyProject(args.name)
         p.add_media_safe(args.media, "0s")
