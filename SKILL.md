@@ -43,8 +43,19 @@ project.save()
 ```
 
 ## 关联手册说明
-- 查看 `references/README.md` 获取详细的功能清单和用法。
-- 查看 `references/api_summary.txt` 获取类和方法的快速参考。
+- **`references/AVAILABLE_ASSETS.md`**: 包含所有可用的动画、特效、转场的枚举名称列表 (供 AI 查阅)。
+- `references/README.md`:  项目详细功能清单。
+- `references/api_summary.txt`: 核心类参考。
+
+## CLI 诊断与快速使用
+Skill 的 Wrapper 脚本支持直接通过命令行运行进行诊断：
+```bash
+# 检查剪映路径和依赖
+python .agent/skills/jianying-editor/scripts/jy_wrapper.py check
+
+# 快速创建草稿
+python .agent/skills/jianying-editor/scripts/jy_wrapper.py create --name "Test" --media "C:/video.mp4" --text "Demo"
+```
 
 ## 约束提示
 - **必须**使用 `DraftFolder` 以保证剪映能识别草稿。

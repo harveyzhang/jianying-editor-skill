@@ -9,18 +9,15 @@ import os
 import sys
 import shutil
 import warnings
+import argparse
+import difflib
 
 # --- 1. 幽灵依赖解决: 自动注入 references 路径 ---
-# 逻辑：脚本位于 .agent/skills/jianying-editor/scripts/jy_wrapper.py
-# 目标 references: .agent/skills/jianying-editor/references
 current_dir = os.path.dirname(os.path.abspath(__file__))
 skill_root = os.path.dirname(current_dir)
 references_path = os.path.join(skill_root, "references")
 
-# 如果 references 存在，优先使用其中的库
 if os.path.exists(references_path):
-    # 将 references/pyJianYingDraft 的上级目录加入 path
-    # 实际上 references 目录下直接就是 pyJianYingDraft 文件夹
     if references_path not in sys.path:
         sys.path.insert(0, references_path)
 
@@ -28,15 +25,16 @@ try:
     import pyJianYingDraft as draft
     from pyJianYingDraft import trange, tim
     from pyJianYingDraft import TextIntro, TextStyle, TextBorder, KeyframeProperty
+    from pyJianYingDraft import VideoSceneEffectType, TransitionType, IntroType, OutroType
 except ImportError:
-    # 尝试回退查找 (兼容用户可能手动修改了目录结构的情况)
     fallback_path = os.path.join(os.getcwd(), "pyJianYingDraft")
     if os.path.exists(fallback_path):
         sys.path.insert(0, os.getcwd())
         import pyJianYingDraft as draft
         from pyJianYingDraft import trange, tim
+        from pyJianYingDraft import TextIntro, TextStyle, TextBorder, KeyframeProperty
+        from pyJianYingDraft import VideoSceneEffectType, TransitionType, IntroType, OutroType
     else:
-        # 如果还是找不到，但不 crash，允许调用者处理
         print(f"⚠️ Warning: pyJianYingDraft module not found in standard locations.")
 
 # --- 2. 路径自动探测 ---
@@ -54,11 +52,40 @@ def get_default_drafts_root() -> str:
     for path in candidates:
         if os.path.exists(path):
             return path
-            
-    # Default fallback
     return candidates[0]
 
-# --- 3. High-Level Facade ---
+# --- 3. 辅助函数: 模糊匹配 ---
+def _resolve_enum(enum_cls, name: str):
+    """
+    尝试从 Enum 类中找到匹配的属性。
+    1. 精确匹配
+    2. 大小写不敏感匹配
+    3. 模糊匹配 (difflib)
+    """
+    if not name: return None
+    
+    # 1. Exact
+    if hasattr(enum_cls, name):
+        return getattr(enum_cls, name)
+    
+    # 2. Case insensitive map
+    name_lower = name.lower()
+    mapping = {k.lower(): k for k in enum_cls.__members__.keys()}
+    
+    if name_lower in mapping:
+        real_key = mapping[name_lower]
+        return getattr(enum_cls, real_key)
+    
+    # 3. Fuzzy
+    matches = difflib.get_close_matches(name, enum_cls.__members__.keys(), n=1, cutoff=0.6)
+    if matches:
+        print(f"ℹ️ Fuzzy Match: '{name}' -> '{matches[0]}'")
+        return getattr(enum_cls, matches[0])
+        
+    print(f"⚠️ Warning: Could not find enum memeber for '{name}'.")
+    return None
+
+# --- 4. High-Level Facade ---
 
 class JyProject:
     """
@@ -78,31 +105,21 @@ class JyProject:
         
         self.df = draft.DraftFolder(self.root)
         self.name = name
-        
-        # 自动覆盖逻辑
-        draft_path = os.path.join(self.root, name)
-        if os.path.exists(draft_path) and overwrite:
-            # 实际上 create_draft(allow_replace=True) 会处理，这里仅做提示
-            pass 
-        
         self.script = self.df.create_draft(name, width, height, allow_replace=overwrite)
 
     def save(self):
         self.script.save()
-        print(f"✅ Saved project: {self.name}")
+        print(f"✅ Saved project: {self.name} to {self.root}")
 
     def add_media_safe(self, media_path: str, start_time: str, duration: str = None, 
                        track_name: str = "VideoTrack"):
-        """自动容错的媒体添加方法 (Auto-Clamp)"""
+        """自动容错的媒体添加方法"""
         if not os.path.exists(media_path):
             print(f"❌ Media Missing: {media_path}")
             return None
 
-        # 确保轨道
         self._ensure_track(draft.TrackType.video, track_name)
         
-        # 1. 探测素材时长
-        # 注意: VideoMaterial 初始化会读取文件头，需确保文件是有效视频/图片
         try:
             mat = draft.VideoMaterial(media_path)
             phys_duration = mat.duration 
@@ -110,22 +127,17 @@ class JyProject:
             print(f"⚠️ Media Read Error: {e}")
             return None
 
-        # 2. 自动截断 (Auto-Clamp)
         start_us = tim(start_time)
         if duration:
             req_duration = tim(duration)
             if req_duration > phys_duration:
-                print(f"⚠️ Auto-Clamp: {duration} > physical {phys_duration/1000000:.2f}s. Using full length.")
+                print(f"⚠️ Auto-Clamp: {duration} > physical. Using full length.")
                 actual_duration = phys_duration
             else:
                 actual_duration = req_duration
         else:
             actual_duration = phys_duration
 
-        # 3. 创建片段
-        # target_timerange 决定了在轨道上的位置: [start_time, start_time + duration]
-        # source_timerange 决定了截取素材哪一段: [0, duration] (这里暂不支持从素材中间截取，简化 API)
-        
         seg = draft.VideoSegment(
             mat,
             target_timerange=trange(start_us, actual_duration),
@@ -142,30 +154,126 @@ class JyProject:
                         anim_in: str = None):
         """极简文本接口"""
         self._ensure_track(draft.TrackType.text, track_name)
-        
         style = TextStyle(size=font_size, color=color_rgb, bold=bold)
-        
         start_us = tim(start_time)
         dur_us = tim(duration)
-        
         seg = draft.TextSegment(text, trange(start_us, dur_us), style=style)
         
-        # 字符串转动画枚举
         if anim_in:
-            if hasattr(TextIntro, anim_in):
-                seg.add_animation(getattr(TextIntro, anim_in))
-            else:
-                print(f"⚠️ Animation '{anim_in}' unknown. Ignoring.")
+            anim = _resolve_enum(TextIntro, anim_in)
+            if anim: seg.add_animation(anim)
                 
         self.script.add_segment(seg, track_name)
         return seg
 
+    def add_effect_simple(self, effect_name: str, start_time: str, duration: str, track_name: str = "EffectTrack"):
+        """添加全局特效 (支持模糊匹配名称)"""
+        self._ensure_track(draft.TrackType.effect, track_name)
+        
+        eff = _resolve_enum(VideoSceneEffectType, effect_name)
+        if not eff:
+            return None
+            
+        start_us = tim(start_time)
+        dur_us = tim(duration)
+        
+        # pyJianYingDraft 的 add_effect 通常是 ScriptFile 层面的方法或者 Segments
+        # 这里我们使用 ScriptFile.add_effect (全局特效)
+        # 注意：add_effect 内部实现可能不同，这里调用 script.add_effect
+        try:
+            self.script.add_effect(eff, trange(start_us, dur_us), track_name=track_name)
+            print(f"✨ Added Effect: {effect_name}")
+        except Exception as e:
+            print(f"❌ Failed to add effect: {e}")
+
+    def add_transition_simple(self, transition_name: str, duration: str = "0.5s", track_name: str = "VideoTrack"):
+        """
+        向指定轨道的最后两个片段之间添加转场。
+        注意：只能添加到已存在的片段之间。
+        """
+        # 找到对应轨道
+        track = None
+        for t in self.script.tracks:
+            if t.name == track_name and t.type == draft.TrackType.video:
+                track = t
+                break
+        
+        if not track or len(track.segments) < 1:
+            print(f"⚠️ Cannot add transition: Track '{track_name}' not found or empty.")
+            return
+
+        trans_enum = _resolve_enum(TransitionType, transition_name)
+        if not trans_enum: return
+
+        # 这里的逻辑假设最后添加的片段需要转场
+        # pyJianYingDraft 的 add_transition 是加在 VideoSegment 对象上的
+        # 通常是加在“后面”那个片段上，或者“前面”？ docs says: "注意转场应当添加在**前面的**片段上"??
+        # Let's check docs from prev step: "为视频片段添加转场, 注意转场应当添加在**前面的**片段上" -> So add to segment[i] to transition to segment[i+1]??
+        # Or add to segment[i] to transition FROM it? 
+        # Usually it's attached to the incoming or outgoing. Let's assume we add to the last segment added.
+        
+        last_seg = track.segments[-1]
+        try:
+            last_seg.add_transition(trans_enum, duration=duration)
+            print(f"🔗 Added Transition: {transition_name}")
+        except Exception as e:
+            print(f"❌ Failed add transition: {e}")
+
     def _ensure_track(self, type, name):
-        # 检查轨道是否存在，简化逻辑：不重复创建同名轨道
         for t in self.script.tracks:
             if t.name == name and t.type == type:
                 return
         self.script.add_track(type, name)
 
+# --- 5. CLI Controller ---
+
+def cli():
+    parser = argparse.ArgumentParser(description="Antigravity JianYing (CapCut) Skill CLI")
+    subparsers = parser.add_subparsers(dest="command")
+    
+    # Command: check
+    subparsers.add_parser("check", help="Run diagnostics on environment")
+    
+    # Command: list
+    list_parser = subparsers.add_parser("list", help="List available assets")
+    list_parser.add_argument("--type", choices=["anim", "effect", "trans"], default="anim")
+    
+    # Command: create (Simple)
+    create_parser = subparsers.add_parser("create", help="Quickly create a simple video draft")
+    create_parser.add_argument("--name", required=True, help="Project Name")
+    create_parser.add_argument("--media", required=True, help="Path to video/image")
+    create_parser.add_argument("--text", help="Overlay text")
+    
+    args = parser.parse_args()
+    
+    if args.command == "check":
+        root = get_default_drafts_root()
+        if os.path.exists(root):
+            print(f"✅ Environment Ready. Drafts Path: {root}")
+            try:
+                import uiautomation
+                print("✅ Dependencies: uiautomation found.")
+            except:
+                print("⚠️ Warning: uiautomation not installed (Auto-export will fail).")
+        else:
+            print(f"❌ Drafts folder not found at: {root}")
+            
+    elif args.command == "list":
+        # Simple listing, refer to md for details
+        print("Please check '.agent/skills/jianying-editor/references/AVAILABLE_ASSETS.md' for full list.")
+        
+    elif args.command == "create":
+        p = JyProject(args.name)
+        p.add_media_safe(args.media, "0s")
+        if args.text:
+            p.add_text_simple(args.text, "0s", "3s")
+        p.save()
+        
+    else:
+        parser.print_help()
+
 if __name__ == "__main__":
-    print("JyWrapper loaded. Use 'from jy_wrapper import JyProject' to start.")
+    if len(sys.argv) > 1:
+        cli()
+    else:
+        print("JyWrapper Library Loaded. Import `JyProject` to use.")
