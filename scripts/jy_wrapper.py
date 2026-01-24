@@ -112,31 +112,58 @@ class JyProject:
         print(f"✅ Saved project: {self.name} to {self.root}")
 
     def add_media_safe(self, media_path: str, start_time: str, duration: str = None, 
-                       track_name: str = "VideoTrack"):
-        """自动容错的媒体添加方法"""
+                       track_name: str = None):
+        """
+        自动容错的媒体添加方法 (Auto-Clamp)
+        支持视频/图片/音频自动分流。
+        """
         if not os.path.exists(media_path):
             print(f"❌ Media Missing: {media_path}")
             return None
 
+        # 简单的后缀判断
+        ext = os.path.splitext(media_path)[1].lower()
+        if ext in ['.mp3', '.wav', '.aac', '.flac', '.m4a']:
+            return self.add_audio_safe(media_path, start_time, duration, track_name or "AudioTrack")
+        
+        # 默认为视频/图片
+        return self._add_video_safe(media_path, start_time, duration, track_name or "VideoTrack")
+
+    def add_audio_safe(self, media_path: str, start_time: str, duration: str = None, 
+                       track_name: str = "AudioTrack"):
+        self._ensure_track(draft.TrackType.audio, track_name)
+        
+        try:
+            mat = draft.AudioMaterial(media_path)
+            phys_duration = mat.duration
+        except Exception as e:
+            print(f"⚠️ Audio Read Error: {e}")
+            return None
+            
+        start_us = tim(start_time)
+        actual_duration = self._calculate_duration(duration, phys_duration)
+        
+        seg = draft.AudioSegment(
+            mat,
+            target_timerange=trange(start_us, actual_duration),
+            source_timerange=trange(0, actual_duration)
+        )
+        self.script.add_segment(seg, track_name)
+        return seg
+
+    def _add_video_safe(self, media_path: str, start_time: str, duration: str = None, 
+                        track_name: str = "VideoTrack"):
         self._ensure_track(draft.TrackType.video, track_name)
         
         try:
             mat = draft.VideoMaterial(media_path)
             phys_duration = mat.duration 
         except Exception as e:
-            print(f"⚠️ Media Read Error: {e}")
+            print(f"⚠️ Video Read Error: {e}")
             return None
 
         start_us = tim(start_time)
-        if duration:
-            req_duration = tim(duration)
-            if req_duration > phys_duration:
-                print(f"⚠️ Auto-Clamp: {duration} > physical. Using full length.")
-                actual_duration = phys_duration
-            else:
-                actual_duration = req_duration
-        else:
-            actual_duration = phys_duration
+        actual_duration = self._calculate_duration(duration, phys_duration)
 
         seg = draft.VideoSegment(
             mat,
@@ -145,6 +172,15 @@ class JyProject:
         )
         self.script.add_segment(seg, track_name)
         return seg
+
+    def _calculate_duration(self, req_duration_str, phys_duration):
+        if req_duration_str:
+            req = tim(req_duration_str)
+            if req > phys_duration:
+                print(f"⚠️ Auto-Clamp: {req_duration_str} > physical. Using full length.")
+                return phys_duration
+            return req
+        return phys_duration
 
     def add_text_simple(self, text: str, start_time: str, duration: str, 
                         track_name: str = "TextTrack",
@@ -177,9 +213,6 @@ class JyProject:
         start_us = tim(start_time)
         dur_us = tim(duration)
         
-        # pyJianYingDraft 的 add_effect 通常是 ScriptFile 层面的方法或者 Segments
-        # 这里我们使用 ScriptFile.add_effect (全局特效)
-        # 注意：add_effect 内部实现可能不同，这里调用 script.add_effect
         try:
             self.script.add_effect(eff, trange(start_us, dur_us), track_name=track_name)
             print(f"✨ Added Effect: {effect_name}")
@@ -189,7 +222,6 @@ class JyProject:
     def add_transition_simple(self, transition_name: str, duration: str = "0.5s", track_name: str = "VideoTrack"):
         """
         向指定轨道的最后两个片段之间添加转场。
-        注意：只能添加到已存在的片段之间。
         """
         # 找到对应轨道 (兼容 List/Dict)
         track = None
@@ -200,8 +232,11 @@ class JyProject:
             iterator = tracks if isinstance(tracks, list) else []
 
         for t in iterator:
+            # 兼容性: 检查 type (旧逻辑) 或 track_type (pyJianYingDraft 可能的属性名)
+            t_type = getattr(t, 'type', None) or getattr(t, 'track_type', None)
+            
             if hasattr(t, 'name') and getattr(t, 'name') == track_name and \
-               hasattr(t, 'type') and getattr(t, 'type') == draft.TrackType.video:
+               t_type == draft.TrackType.video:
                 track = t
                 break
         
