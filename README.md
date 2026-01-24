@@ -4,12 +4,15 @@
 
 ## 🚀 Quick Start / 快速入门
 
-# 1. Install skills
-mkdir -p .agent/skills/
+### 1. Install skills
+```bash
 git clone https://github.com/luoluoluo22/jianying-editor-skill.git .agent/skills/jianying-editor
+```
 
-# 2. Use a skill in your AI assistant
+### 2. Use a skill in your AI assistant
+```text
 @jianying-editor 帮我用 assets 里的视频创建一个自动剪辑项目
+```
 
 ---
 
