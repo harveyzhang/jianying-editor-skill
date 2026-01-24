@@ -13,15 +13,34 @@ description: 使用 pyJianYingDraft 库自动化创建、编辑和管理剪映 (
 - **`references/`**: 包含项目的 `README.md` 和核心模块（`script_file.py`, `draft_folder.py`）的接口定义，供代理随时查阅 API。
 - **`scripts/`**: 封装了常用的批处理任务（模板替换、自动导出）。
 
-## 基础操作指南
-1. **初始化**：始终通过 `DraftFolder` 管理草稿：
-   ```python
-   df = draft.DraftFolder(r"C:\Users\Administrator\AppData\Local\JianyingPro\User Data\Projects\com.lveditor.draft")
-   ```
-2. **创建项目**：`script = df.create_draft("ProjectName", 1920, 1080)`。
-3. **管理轨道**：支持 `TrackType.video`, `audio`, `text`, `effect`, `filter`。
-4. **添加片段**：创建 `Segment` 对象并调用 `script.add_segment()`。
-5. **保存**：`script.save()` 会自动处理元数据。
+## 操作指南 (推荐使用 Wrapper)
+在执行任务时，强烈推荐使用封装好的 `jy_wrapper` 来简化操作：
+
+### 1. 引入 Wrapper
+```python
+import sys
+import os
+# 自动定位 Skill 路径并注入
+skill_root = os.path.abspath(".agent/skills/jianying-editor")
+sys.path.append(os.path.join(skill_root, "scripts"))
+from jy_wrapper import JyProject
+```
+
+### 2. 标准工作流
+```python
+# 初始化 (自动探测路径 + 自动处理同名覆盖)
+project = JyProject("MyAutoVideo")
+
+# 添加媒体 (自动容错时长，自动创建轨道)
+project.add_media_safe(r"C:\path\to\video.mp4", start_time="0s", duration="5s")
+
+# 添加文本 (扁平化参数，自动映射动画)
+project.add_text_simple("Hello Antigravity", start_time="1s", duration="3s", 
+                        font_size=20.0, color_rgb=(1.0, 0.0, 0.0), anim_in="复古打字机")
+
+# 保存
+project.save()
+```
 
 ## 关联手册说明
 - 查看 `references/README.md` 获取详细的功能清单和用法。
