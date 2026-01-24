@@ -12,6 +12,7 @@ description: 使用 pyJianYingDraft 库自动化创建、编辑和管理剪映 (
 本 Skill 包含完整的项目参考手册和核心逻辑脚本：
 - **`references/`**: 包含项目的 `README.md` 和核心模块（`script_file.py`, `draft_folder.py`）的接口定义，供代理随时查阅 API。
 - **`scripts/`**: 封装了常用的批处理任务（模板替换、自动导出）。
+- **`assets/`**: 包含演示用的测试素材（assets/readme_assets/tutorial/ 下有 video.mp4, audio.mp3 等），Agent 在创建 Demo 时**必须**优先使用这些素材，而非生成纯文本草稿。
 
 ## 操作指南 (推荐使用 Wrapper)
 在执行任务时，强烈推荐使用封装好的 `jy_wrapper` 来简化操作：
