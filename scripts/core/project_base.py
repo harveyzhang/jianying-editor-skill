@@ -1,6 +1,7 @@
 import os
 import re
 import shutil
+import sys
 import time
 
 import pyJianYingDraft as draft
@@ -203,6 +204,23 @@ class JyProjectBase:
             cleaned = cleaned.replace("..", "_")
         if not cleaned:
             raise ValueError("Invalid project_name: empty after sanitization.")
+
+        # CapCut on macOS does not support non-ASCII / Chinese characters in draft folder paths
+        is_capcut = "CapCut" in getattr(self, "root", "") or (
+            sys.platform == "darwin" and os.path.exists("/Applications/CapCut.app")
+        )
+        if is_capcut and not cleaned.isascii():
+            ascii_slug = re.sub(r"[^\x00-\x7F]+", "_", cleaned).strip("_")
+            if not ascii_slug:
+                ascii_slug = f"Draft_{int(time.time())}"
+            else:
+                ascii_slug = re.sub(r"_+", "_", ascii_slug)
+            print(
+                f"[warn] CapCut does not support non-ASCII/Chinese characters in draft folder path. "
+                f"Sanitized project_name: '{cleaned}' -> '{ascii_slug}'"
+            )
+            cleaned = ascii_slug
+
         if cleaned != name:
             print(f"[warn] project_name sanitized: '{name}' -> '{cleaned}'")
         return cleaned

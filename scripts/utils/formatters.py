@@ -31,12 +31,53 @@ def get_default_drafts_root() -> str:
     if _sys.platform == "darwin":
         # ---- macOS ----
         home = os.path.expanduser("~")
+        capcut_draft_path = os.path.join(
+            home, "Movies", "CapCut", "User Data", "Projects", "com.lveditor.draft"
+        )
+        jianying_draft_path = os.path.join(
+            home, "Movies", "JianyingPro", "User Data", "Projects", "com.lveditor.draft"
+        )
+
+        is_capcut_active = False
+        try:
+            is_capcut_active = (
+                subprocess.run(
+                    ["pgrep", "-x", "CapCut"],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                ).returncode
+                == 0
+            )
+        except Exception:
+            pass
+
+        if (
+            not is_capcut_active
+            and os.path.exists("/Applications/CapCut.app")
+            and not os.path.exists("/Applications/JianyingPro.app")
+        ):
+            is_capcut_active = True
+
+        if is_capcut_active:
+            candidates.extend(
+                [
+                    capcut_draft_path,
+                    os.path.join(home, "Movies", "CapCut Drafts"),
+                    jianying_draft_path,
+                    os.path.join(home, "Movies", "JianyingPro Drafts"),
+                ]
+            )
+        else:
+            candidates.extend(
+                [
+                    jianying_draft_path,
+                    os.path.join(home, "Movies", "JianyingPro Drafts"),
+                    capcut_draft_path,
+                    os.path.join(home, "Movies", "CapCut Drafts"),
+                ]
+            )
         candidates.extend(
             [
-                os.path.join(
-                    home, "Movies", "JianyingPro", "User Data", "Projects", "com.lveditor.draft"
-                ),
-                os.path.join(home, "Movies", "JianyingPro Drafts"),
                 os.path.join(
                     home,
                     "Library",

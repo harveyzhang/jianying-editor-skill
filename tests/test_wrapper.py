@@ -312,6 +312,13 @@ class TestJyWrapper(unittest.TestCase):
             for t in tracks:
                 self.assertEqual(len(t.segments), 0)
 
+    def test_20_capcut_non_ascii_project_name_sanitized(self):
+        """测试 CapCut 环境下非 ASCII 中文项目名被自动转为 ASCII 路径安全名"""
+        capcut_root = os.path.join(self.test_output, "CapCut", "User Data", "Projects", "com.lveditor.draft")
+        p = JyProject("GTA6_寻找脱衣舞俱乐部", drafts_root=capcut_root, overwrite=True)
+        self.assertTrue(p.name.isascii())
+        self.assertIn("GTA6", p.name)
+
     @classmethod
     def tearDownClass(cls):
         # 清理测试产物

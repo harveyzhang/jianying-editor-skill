@@ -1,5 +1,5 @@
 # JianYing Cloud Sound Effects Library
-# AI Guidance: Use 'effect_id' to reference. If not in cache, ask user to 'Sync Music' or use cloud API.
+# AI Guidance: Use 'effect_id' to reference. Sync if not available.
 # Schema: identifier,title,duration_s,categories
 effect_id,title,duration_s,categories
 7330113401856724239,Gentle and pop marimba BGM(1040887),64.7,热门

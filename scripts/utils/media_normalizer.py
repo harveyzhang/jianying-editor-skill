@@ -46,13 +46,17 @@ def _probe_video(input_path: str) -> dict:
 
 
 def should_normalize_video_for_jianying(input_path: str) -> bool:
+    import sys
+
     info = _probe_video(input_path)
     if not info:
         return False
     width = int(info.get("width") or 0)
     height = int(info.get("height") or 0)
+    codec = info.get("codec_name")
+    valid_codecs = {"h264", "hevc"} if sys.platform == "darwin" else {"h264"}
     return (
-        info.get("codec_name") != "h264"
+        codec not in valid_codecs
         or info.get("pix_fmt") != "yuv420p"
         or width <= 0
         or height <= 0

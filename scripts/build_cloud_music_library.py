@@ -16,46 +16,9 @@ logger = setup_logger("build_cloud_music_library")
 
 def _get_default_projects_root() -> str:
     """跨平台探测剪映草稿目录"""
-    if sys.platform == "darwin":
-        home = os.path.expanduser("~")
-        candidates = [
-            os.path.join(home, "Movies", "JianyingPro Drafts"),
-            os.path.join(
-                home, "Movies", "JianyingPro", "User Data", "Projects", "com.lveditor.draft"
-            ),
-            os.path.join(
-                home,
-                "Library",
-                "Containers",
-                "com.lemon.lvpro",
-                "Data",
-                "Library",
-                "Application Support",
-                "JianyingPro",
-                "User Data",
-                "Projects",
-                "com.lveditor.draft",
-            ),
-        ]
-    else:
-        local_app_data = os.getenv("LOCALAPPDATA", "")
-        candidates = (
-            [
-                os.path.join(
-                    local_app_data, "JianyingPro", "User Data", "Projects", "com.lveditor.draft"
-                ),
-                os.path.join(
-                    local_app_data, "CapCut", "User Data", "Projects", "com.lveditor.draft"
-                ),
-            ]
-            if local_app_data
-            else []
-        )
+    from utils.formatters import get_default_drafts_root
 
-    for p in candidates:
-        if os.path.exists(p):
-            return p
-    return candidates[0] if candidates else ""
+    return get_default_drafts_root()
 
 
 PROJECTS_ROOT = CONFIG.projects_root_override or _get_default_projects_root()

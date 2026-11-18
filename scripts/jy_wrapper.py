@@ -51,6 +51,7 @@ class JyProject(JyProjectBase, MediaOpsMixin, TextOpsMixin, VfxOpsMixin, Mocking
         self.script.save()
         self._patch_cloud_material_ids()
         self._force_activate_adjustments()
+        self._patch_capcut_metadata()
         
         draft_path = os.path.join(self.root, self.name)
         if os.path.exists(draft_path):
